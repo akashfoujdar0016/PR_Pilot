@@ -1,0 +1,11 @@
+# PR Pilot — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Google Gemini AI SDK
+google-generativeai>=0.8.0
+
+# HTTP requests (GitHub API)
+requests>=2.31.0
+
+# YAML config parsing (used by pr_review.py and changelog_generator.py)
+PyYAML>=6.0.1

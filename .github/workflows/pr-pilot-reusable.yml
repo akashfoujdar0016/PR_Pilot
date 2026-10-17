@@ -1,0 +1,160 @@
+name: 🤖 PR Pilot - Reusable Core
+
+# ─────────────────────────────────────────────────────────────────────────────
+# This is the REUSABLE workflow. It lives only in the PR Pilot repo.
+# Other repos call it with:
+#
+#   uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
+#
+# They only need to pass their GEMINI_API_KEY secret — everything else
+# (scripts, config, dependencies) runs from THIS repo's code.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_call:
+    inputs:
+      # --- Required ---
+      pr_number:
+        description: "Pull request number"
+        required: true
+        type: string
+      job_type:
+        description: "Which job to run: review | changelog"
+        required: true
+        type: string
+
+      # --- Optional PR metadata (passed by the caller workflow) ---
+      pr_title:
+        required: false
+        type: string
+        default: ""
+      pr_body:
+        required: false
+        type: string
+        default: ""
+      pr_author:
+        required: false
+        type: string
+        default: ""
+      base_branch:
+        required: false
+        type: string
+        default: "main"
+      head_branch:
+        required: false
+        type: string
+        default: ""
+      head_sha:
+        required: false
+        type: string
+        default: ""
+      merged_at:
+        required: false
+        type: string
+        default: ""
+      repo_full_name:
+        description: "Full repo name of the CALLING repo (e.g. owner/my-app)"
+        required: true
+        type: string
+
+    secrets:
+      GEMINI_API_KEY:
+        required: true
+      # The caller's GITHUB_TOKEN is passed so PR comments go to the right repo
+      CALLER_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  # ─────────────────────────────────────────────────────
+  # JOB 1: AI Code Review
+  # ─────────────────────────────────────────────────────
+  ai-code-review:
+    name: 🔍 AI Code Review
+    if: inputs.job_type == 'review'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR Pilot (this repo)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}   # PR Pilot's own repo
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🤖 Run PR Pilot Review Agent
+        working-directory: scripts
+        run: python pr_review.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.CALLER_GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          PR_BODY: ${{ inputs.pr_body }}
+          PR_AUTHOR: ${{ inputs.pr_author }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          HEAD_BRANCH: ${{ inputs.head_branch }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          REPO_FULL_NAME: ${{ inputs.repo_full_name }}
+
+  # ─────────────────────────────────────────────────────
+  # JOB 2: Changelog Generator
+  # ─────────────────────────────────────────────────────
+  generate-changelog:
+    name: 📄 Generate Changelog
+    if: inputs.job_type == 'changelog'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR Pilot (this repo)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          fetch-depth: 0
+
+      - name: Checkout Calling Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo_full_name }}
+          token: ${{ secrets.CALLER_GITHUB_TOKEN }}
+          path: calling-repo
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: 📝 Generate Changelog Entry
+        working-directory: scripts
+        run: python changelog_generator.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.CALLER_GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          PR_BODY: ${{ inputs.pr_body }}
+          PR_AUTHOR: ${{ inputs.pr_author }}
+          MERGED_AT: ${{ inputs.merged_at }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          REPO_FULL_NAME: ${{ inputs.repo_full_name }}
+          # Write CHANGELOG.md into the calling repo's checkout
+          CHANGELOG_OUTPUT_DIR: ${{ github.workspace }}/calling-repo
+
+      - name: Commit Changelog to Calling Repo
+        working-directory: calling-repo
+        run: |
+          git config --local user.name "PR Pilot Bot"
+          git config --local user.email "pr-pilot-bot@github-actions.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "📄 chore: update changelog for PR #${{ inputs.pr_number }} [skip ci]"
+          git push

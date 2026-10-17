@@ -1,0 +1,77 @@
+# PR Pilot — Review Configuration
+# Customize these settings to match your project's standards.
+
+review:
+  # Minimum quality score required to auto-approve a PR (1–10)
+  min_quality_score: 7
+
+  # Block PR merge if no tests are detected
+  require_tests: true
+
+  # Block PR merge if no documentation update is detected
+  require_docs: false
+
+  # File patterns to skip entirely during review
+  skip_patterns:
+    - "*.lock"
+    - "package-lock.json"
+    - "yarn.lock"
+    - "*.min.js"
+    - "*.min.css"
+    - "dist/*"
+    - "build/*"
+    - ".github/*"
+
+  # Maximum number of inline comments to post per review
+  max_inline_comments: 15
+
+  # Focus areas to emphasize in the review prompt (ordered by priority)
+  focus_areas:
+    - bugs
+    - security
+    - performance
+    - tests
+    - documentation
+    - style
+
+gemini:
+  # Model to use — gemini-2.5-flash is recommended for speed + quality
+  model: "gemini-2.5-flash"
+
+  # Temperature: lower = more consistent, higher = more creative
+  temperature: 0.2
+
+  # Max tokens for the review response
+  max_output_tokens: 8192
+
+changelog:
+  # File to write changelog entries to
+  output_file: "CHANGELOG.md"
+
+  # Conventional commit types to include in the changelog
+  # (others are still reviewed but not highlighted)
+  tracked_types:
+    - feat
+    - fix
+    - security
+    - perf
+    - breaking
+
+  # Whether to post a changelog preview comment on the merged PR
+  post_comment: true
+
+labels:
+  # Auto-apply labels to PRs based on AI verdict
+  enabled: true
+
+  # Color map for auto-created labels (hex without #)
+  color_map:
+    bug: "d73a4a"
+    enhancement: "a2eeef"
+    documentation: "0075ca"
+    style: "e4e669"
+    performance: "fb8500"
+    security: "e11d48"
+    needs-tests: "f97316"
+    breaking-change: "7c3aed"
+    chore: "ededed"

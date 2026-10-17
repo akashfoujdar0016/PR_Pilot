@@ -1,0 +1,128 @@
+name: 🤖 PR Pilot - AI Code Review Agent
+
+on:
+  # ── Triggered by real PR events ──────────────────────────────────────────
+  # Using pull_request (not pull_request_target) so fork PRs cannot access
+  # repository secrets, preventing secret-exfiltration attacks.
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+  # ── Manual trigger for testing without opening a real PR ─────────────────
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review (for manual testing)"
+        required: true
+        type: string
+      job:
+        description: "Which job to run"
+        required: true
+        default: "review"
+        type: choice
+        options:
+          - review
+          - changelog
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+  issues: write
+  statuses: write
+
+jobs:
+  # ─────────────────────────────────────────────────────
+  # JOB 1: AI Code Review (on PR open / new commits)
+  # ─────────────────────────────────────────────────────
+  ai-code-review:
+    name: 🔍 AI Code Review
+    # Run on real PR events (not closed) OR when manually triggered for "review"
+    if: |
+      (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'review')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🤖 Run PR Pilot Review Agent
+        working-directory: scripts
+        run: python pr_review.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO_FULL_NAME: ${{ github.repository }}
+
+      - name: ✅ Review Complete
+        if: success()
+        run: echo "✅ PR Pilot AI review completed successfully."
+
+      - name: ❌ Review Failed
+        if: failure()
+        run: echo "❌ PR Pilot review encountered an issue. Check logs above."
+
+  # ─────────────────────────────────────────────────────
+  # JOB 2: Changelog Generator (on PR merge)
+  # ─────────────────────────────────────────────────────
+  generate-changelog:
+    name: 📄 Generate Changelog
+    # Run on real PR merge OR when manually triggered for "changelog"
+    if: |
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'changelog')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: 📝 Generate Changelog Entry
+        working-directory: scripts
+        run: python changelog_generator.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          MERGED_AT: ${{ github.event.pull_request.merged_at }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          REPO_FULL_NAME: ${{ github.repository }}
+
+      - name: Commit Changelog Update
+        run: |
+          git config --local user.name "PR Pilot Bot"
+          git config --local user.email "pr-pilot-bot@github-actions.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "📄 chore: update changelog for PR #${{ github.event.inputs.pr_number || github.event.pull_request.number }} [skip ci]"
+          git push

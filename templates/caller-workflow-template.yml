@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PR Pilot — Caller Workflow Template
+# ─────────────────────────────────────────────────────────────────────────────
+# Drop this file into ANY repo at: .github/workflows/pr-pilot.yml
+#
+# Prerequisites (one-time per repo):
+#   1. Add GEMINI_API_KEY as a repo secret (Settings → Secrets → Actions)
+#   2. Change YOUR_USERNAME below to your GitHub username/org
+#
+# That's it — no scripts, no dependencies, no config to copy.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: 🤖 PR Pilot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+
+jobs:
+  # ── AI Code Review (fires on every new/updated PR) ───────────────────────
+  ai-review:
+    name: 🔍 AI Code Review
+    if: github.event.action != 'closed'
+    uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
+    with:
+      job_type: "review"
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+      base_branch: ${{ github.event.pull_request.base.ref }}
+      head_branch: ${{ github.event.pull_request.head.ref }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      repo_full_name: ${{ github.repository }}
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CALLER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Changelog Generator (fires only when a PR is merged) ─────────────────
+  changelog:
+    name: 📄 Generate Changelog
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
+    with:
+      job_type: "changelog"
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+      base_branch: ${{ github.event.pull_request.base.ref }}
+      merged_at: ${{ github.event.pull_request.merged_at }}
+      repo_full_name: ${{ github.repository }}
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CALLER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
