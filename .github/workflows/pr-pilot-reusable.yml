@@ -4,7 +4,7 @@ name: 🤖 PR Pilot - Reusable Core
 # This is the REUSABLE workflow. It lives only in the PR Pilot repo.
 # Other repos call it with:
 #
-#   uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
+   uses: https://github.com/akashfoujdar0016/Jovac_demo.git/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
 #
 # They only need to pass their GEMINI_API_KEY secret — everything else
 # (scripts, config, dependencies) runs from THIS repo's code.
