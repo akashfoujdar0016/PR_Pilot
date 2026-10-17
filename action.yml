@@ -1,0 +1,63 @@
+name: "PR Pilot — AI Code Review"
+description: "Autonomous AI-powered PR reviewer and changelog generator using Google Gemini."
+author: "akashfoujdar0016"
+
+inputs:
+  gemini_api_key:
+    description: "Google Gemini API Key"
+    required: true
+  github_token:
+    description: "GitHub Token for posting reviews and comments"
+    required: false
+    default: ${{ github.token }}
+  job_type:
+    description: "Which task to run: 'review' or 'changelog'"
+    required: false
+    default: "review"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install google-generativeai requests PyYAML
+
+    - name: 🤖 Run PR Review
+      if: inputs.job_type == 'review'
+      shell: bash
+      working-directory: ${{ github.action_path }}/scripts
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+        PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        REPO_FULL_NAME: ${{ github.repository }}
+      run: python pr_review.py
+
+    - name: 📝 Generate Changelog
+      if: inputs.job_type == 'changelog'
+      shell: bash
+      working-directory: ${{ github.action_path }}/scripts
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+        PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        MERGED_AT: ${{ github.event.pull_request.merged_at }}
+        BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        REPO_FULL_NAME: ${{ github.repository }}
+      run: python changelog_generator.py

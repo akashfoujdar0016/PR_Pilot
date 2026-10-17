@@ -1,13 +1,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# PR Pilot — Caller Workflow Template
+# PR Pilot — Caller Workflow Template (for any repository)
 # ─────────────────────────────────────────────────────────────────────────────
 # Drop this file into ANY repo at: .github/workflows/pr-pilot.yml
 #
-# Prerequisites (one-time per repo):
-#   1. Add GEMINI_API_KEY as a repo secret (Settings → Secrets → Actions)
-#   2. Change YOUR_USERNAME below to your GitHub username/org
+# Prerequisites (one-time setup in that repository):
+#   1. Add GEMINI_API_KEY as a repo secret (Settings → Secrets and variables → Actions)
 #
-# That's it — no scripts, no dependencies, no config to copy.
+# You do NOT need Python, scripts, or requirements in that repository.
+# GitHub Actions will download PR Pilot directly from akashfoujdar0016/PR_Pilot.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: 🤖 PR Pilot
@@ -23,39 +23,44 @@ permissions:
   statuses: write
 
 jobs:
-  # ── AI Code Review (fires on every new/updated PR) ───────────────────────
   ai-review:
     name: 🔍 AI Code Review
     if: github.event.action != 'closed'
-    uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
-    with:
-      job_type: "review"
-      pr_number: ${{ github.event.pull_request.number }}
-      pr_title: ${{ github.event.pull_request.title }}
-      pr_body: ${{ github.event.pull_request.body }}
-      pr_author: ${{ github.event.pull_request.user.login }}
-      base_branch: ${{ github.event.pull_request.base.ref }}
-      head_branch: ${{ github.event.pull_request.head.ref }}
-      head_sha: ${{ github.event.pull_request.head.sha }}
-      repo_full_name: ${{ github.repository }}
-    secrets:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      CALLER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  # ── Changelog Generator (fires only when a PR is merged) ─────────────────
+      - name: Run PR Pilot AI Review
+        uses: akashfoujdar0016/PR_Pilot@main
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          job_type: "review"
+
   changelog:
     name: 📄 Generate Changelog
     if: github.event.action == 'closed' && github.event.pull_request.merged == true
-    uses: YOUR_USERNAME/pr-pilot/.github/workflows/pr-pilot-reusable.yml@main
-    with:
-      job_type: "changelog"
-      pr_number: ${{ github.event.pull_request.number }}
-      pr_title: ${{ github.event.pull_request.title }}
-      pr_body: ${{ github.event.pull_request.body }}
-      pr_author: ${{ github.event.pull_request.user.login }}
-      base_branch: ${{ github.event.pull_request.base.ref }}
-      merged_at: ${{ github.event.pull_request.merged_at }}
-      repo_full_name: ${{ github.repository }}
-    secrets:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      CALLER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run PR Pilot Changelog Generator
+        uses: akashfoujdar0016/PR_Pilot@main
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          job_type: "changelog"
+
+      - name: Commit Changelog Update
+        run: |
+          git config --local user.name "PR Pilot Bot"
+          git config --local user.email "pr-pilot-bot@github-actions.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "📄 chore: update changelog for PR #${{ github.event.pull_request.number }} [skip ci]"
+          git push
